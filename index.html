@@ -171,7 +171,9 @@
             const saved = localStorage.getItem(SAVE_KEY);
             if (saved) {
                 try {
-                    return JSON.parse(saved);
+                    const state = JSON.parse(saved);
+                    state.won = false; // Always reset won state on load
+                    return state;
                 } catch (e) {
                     console.error('Failed to load save data:', e);
                 }

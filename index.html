@@ -39,6 +39,28 @@
             display: none;
         }
         
+        #decorativeMazeLeft, #decorativeMazeRight {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            opacity: 0.3;
+            pointer-events: none;
+        }
+        
+        #decorativeMazeLeft {
+            left: 0;
+        }
+        
+        #decorativeMazeRight {
+            right: 0;
+        }
+        
+        @media (max-width: 1200px) {
+            #decorativeMazeLeft, #decorativeMazeRight {
+                display: none;
+            }
+        }
+        
         .menu-title {
             font-size: 48px;
             color: #4a90e2;
@@ -286,6 +308,8 @@
 <body>
     <!-- Start Menu -->
     <div id="startMenu">
+        <canvas id="decorativeMazeLeft"></canvas>
+        <canvas id="decorativeMazeRight"></canvas>
         <div class="menu-title">MAZE EXPLORER</div>
         <div class="menu-options">
             <div class="menu-item" id="campaignBtn">
@@ -348,7 +372,7 @@
         canvas.height = window.innerHeight;
 
         // Game mode
-        let gameMode = 'campaign'; // 'campaign' or 'quick'
+        let gameMode = 'campaign';
         let quickMazeConfig = { level: 1, seed: 12345 };
 
         // Storage key
@@ -397,7 +421,6 @@
                     saveGameState();
                 }
             } else {
-                // Quick mode - generate new seed
                 quickMazeConfig.seed = Date.now();
                 const mazeSize = 5 + quickMazeConfig.level * 15;
                 maze = new Maze(mazeSize, mazeSize, quickMazeConfig.seed);
@@ -427,6 +450,186 @@
             }
         }
 
+        // Decorative Maze for start menu
+        class DecorativeMaze {
+            constructor(canvas, cols, rows, seed) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.cols = cols;
+                this.rows = rows;
+                this.cellSize = 20;
+                this.grid = [];
+                this.rng = new Random(seed);
+                this.stack = [];
+                this.generationComplete = false;
+                this.animationSpeed = 2;
+                
+                this.canvas.width = this.cols * this.cellSize;
+                this.canvas.height = this.rows * this.cellSize;
+                
+                for (let y = 0; y < rows; y++) {
+                    this.grid[y] = [];
+                    for (let x = 0; x < cols; x++) {
+                        this.grid[y][x] = {
+                            walls: { top: true, right: true, bottom: true, left: true },
+                            visited: false
+                        };
+                    }
+                }
+                
+                const startX = Math.floor(this.rng.next() * cols);
+                const startY = Math.floor(this.rng.next() * rows);
+                this.stack.push([startX, startY]);
+            }
+
+            step() {
+                if (this.stack.length === 0) {
+                    this.generationComplete = true;
+                    return;
+                }
+
+                const [cx, cy] = this.stack[this.stack.length - 1];
+                this.grid[cy][cx].visited = true;
+                
+                const directions = [
+                    { dx: 0, dy: -1, wall: 'top', opposite: 'bottom' },
+                    { dx: 1, dy: 0, wall: 'right', opposite: 'left' },
+                    { dx: 0, dy: 1, wall: 'bottom', opposite: 'top' },
+                    { dx: -1, dy: 0, wall: 'left', opposite: 'right' }
+                ];
+                
+                for (let i = directions.length - 1; i > 0; i--) {
+                    const j = Math.floor(this.rng.next() * (i + 1));
+                    [directions[i], directions[j]] = [directions[j], directions[i]];
+                }
+                
+                let foundUnvisited = false;
+                for (const dir of directions) {
+                    const nx = cx + dir.dx;
+                    const ny = cy + dir.dy;
+                    
+                    if (nx >= 0 && nx < this.cols && ny >= 0 && ny < this.rows && !this.grid[ny][nx].visited) {
+                        this.grid[cy][cx].walls[dir.wall] = false;
+                        this.grid[ny][nx].walls[dir.opposite] = false;
+                        this.stack.push([nx, ny]);
+                        foundUnvisited = true;
+                        break;
+                    }
+                }
+                
+                if (!foundUnvisited) {
+                    this.stack.pop();
+                }
+            }
+
+            draw() {
+                this.ctx.fillStyle = '#1a1a2e';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                this.ctx.strokeStyle = '#4a90e2';
+                this.ctx.lineWidth = 2;
+
+                for (let y = 0; y < this.rows; y++) {
+                    for (let x = 0; x < this.cols; x++) {
+                        const cell = this.grid[y][x];
+                        const screenX = x * this.cellSize;
+                        const screenY = y * this.cellSize;
+
+                        this.ctx.beginPath();
+                        if (cell.walls.top) {
+                            this.ctx.moveTo(screenX, screenY);
+                            this.ctx.lineTo(screenX + this.cellSize, screenY);
+                        }
+                        if (cell.walls.right) {
+                            this.ctx.moveTo(screenX + this.cellSize, screenY);
+                            this.ctx.lineTo(screenX + this.cellSize, screenY + this.cellSize);
+                        }
+                        if (cell.walls.bottom) {
+                            this.ctx.moveTo(screenX, screenY + this.cellSize);
+                            this.ctx.lineTo(screenX + this.cellSize, screenY + this.cellSize);
+                        }
+                        if (cell.walls.left) {
+                            this.ctx.moveTo(screenX, screenY);
+                            this.ctx.lineTo(screenX, screenY + this.cellSize);
+                        }
+                        this.ctx.stroke();
+                    }
+                }
+                
+                if (this.stack.length > 0) {
+                    const [cx, cy] = this.stack[this.stack.length - 1];
+                    this.ctx.fillStyle = 'rgba(74, 144, 226, 0.3)';
+                    this.ctx.fillRect(cx * this.cellSize + 2, cy * this.cellSize + 2, 
+                                     this.cellSize - 4, this.cellSize - 4);
+                }
+            }
+
+            reset() {
+                this.grid = [];
+                this.stack = [];
+                this.generationComplete = false;
+                
+                for (let y = 0; y < this.rows; y++) {
+                    this.grid[y] = [];
+                    for (let x = 0; x < this.cols; x++) {
+                        this.grid[y][x] = {
+                            walls: { top: true, right: true, bottom: true, left: true },
+                            visited: false
+                        };
+                    }
+                }
+                
+                const startX = Math.floor(this.rng.next() * this.cols);
+                const startY = Math.floor(this.rng.next() * this.rows);
+                this.stack.push([startX, startY]);
+            }
+        }
+
+        // Initialize decorative mazes
+        let decorativeMazeLeft = null;
+        let decorativeMazeRight = null;
+        
+        function initDecorativeMazes() {
+            const leftCanvas = document.getElementById('decorativeMazeLeft');
+            const rightCanvas = document.getElementById('decorativeMazeRight');
+            
+            if (leftCanvas && rightCanvas) {
+                const mazeHeight = Math.floor(window.innerHeight / 20);
+                const mazeWidth = 15;
+                
+                decorativeMazeLeft = new DecorativeMaze(leftCanvas, mazeWidth, mazeHeight, Date.now());
+                decorativeMazeRight = new DecorativeMaze(rightCanvas, mazeWidth, mazeHeight, Date.now() + 1000);
+            }
+        }
+        
+        function animateDecorativeMazes() {
+            if (!document.getElementById('startMenu').classList.contains('hidden')) {
+                if (decorativeMazeLeft) {
+                    for (let i = 0; i < decorativeMazeLeft.animationSpeed; i++) {
+                        if (!decorativeMazeLeft.generationComplete) {
+                            decorativeMazeLeft.step();
+                        } else {
+                            decorativeMazeLeft.reset();
+                        }
+                    }
+                    decorativeMazeLeft.draw();
+                }
+                
+                if (decorativeMazeRight) {
+                    for (let i = 0; i < decorativeMazeRight.animationSpeed; i++) {
+                        if (!decorativeMazeRight.generationComplete) {
+                            decorativeMazeRight.step();
+                        } else {
+                            decorativeMazeRight.reset();
+                        }
+                    }
+                    decorativeMazeRight.draw();
+                }
+            }
+        }
+        
+        initDecorativeMazes();
+
         // Maze generator
         class Maze {
             constructor(cols, rows, seed) {
@@ -451,7 +654,6 @@
             }
 
             generate(x, y) {
-                // Iterative implementation using a stack to avoid recursion limits
                 const stack = [[x, y]];
                 
                 while (stack.length > 0) {
@@ -465,7 +667,6 @@
                         { dx: -1, dy: 0, wall: 'left', opposite: 'right' }
                     ];
                     
-                    // Shuffle directions
                     for (let i = directions.length - 1; i > 0; i--) {
                         const j = Math.floor(this.rng.next() * (i + 1));
                         [directions[i], directions[j]] = [directions[j], directions[i]];
@@ -613,7 +814,6 @@
             document.getElementById('startMenu').classList.add('hidden');
             
             if (mode === 'campaign') {
-                // Ensure level doesn't exceed 8
                 if (gameState.level > 8) gameState.level = 8;
                 if (gameState.highestLevel > 8) gameState.highestLevel = 8;
                 
@@ -629,7 +829,6 @@
                 player = new Player(validX, validY);
             } else {
                 quickMazeConfig = config;
-                // Ensure level doesn't exceed 8
                 if (quickMazeConfig.level > 8) quickMazeConfig.level = 8;
                 
                 const mazeSize = 5 + quickMazeConfig.level * 15;
@@ -642,7 +841,6 @@
 
         // Menu button handlers
         document.getElementById('campaignBtn').addEventListener('click', () => {
-            // Ensure campaign level doesn't exceed 8
             if (gameState.level > 8) {
                 gameState.level = 8;
                 saveGameState();
@@ -654,14 +852,12 @@
             let level = parseInt(document.getElementById('quickLevel').value) || 1;
             const seed = parseInt(document.getElementById('quickSeed').value) || Date.now();
             
-            // Clamp level between 1 and 8
             level = Math.max(1, Math.min(8, level));
             document.getElementById('quickLevel').value = level;
             
             startGame('quick', { level, seed });
         });
 
-        // Validate quick level input
         document.getElementById('quickLevel').addEventListener('input', (e) => {
             let value = parseInt(e.target.value);
             if (value > 8) {
@@ -700,7 +896,6 @@
         document.getElementById('menuBtn2').addEventListener('click', returnToMenu);
         document.getElementById('nextLevelBtn').addEventListener('click', () => {
             if (gameMode === 'campaign') {
-                // Check if player just completed level 8
                 if (gameState.level >= 8) {
                     alert('🎉 Congratulations! You\'ve completed all 8 levels!\n\nStarting from Level 1 again...');
                     gameState.level = 1;
@@ -727,7 +922,6 @@
                 saveGameState();
                 updateUI();
             } else {
-                // Quick mode - same level, new seed
                 quickMazeConfig.seed = Date.now();
                 gameState.won = false;
                 document.getElementById('win').style.display = 'none';
@@ -810,41 +1004,47 @@
 
         // Game loop
         function gameLoop() {
-            if (document.getElementById('startMenu').classList.contains('hidden')) {
-                ctx.fillStyle = '#0f0f1e';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            animateDecorativeMazes();
+            
+            if (!document.getElementById('startMenu').classList.contains('hidden') || !maze || !player) {
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+            
+            ctx.fillStyle = '#0f0f1e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                const camX = player.x - canvas.width / 2;
-                const camY = player.y - canvas.height / 2;
+            const camX = player.x - canvas.width / 2;
+            const camY = player.y - canvas.height / 2;
 
-                if (!gameState.won) {
-                    let dx = 0, dy = 0;
-                    if (keys['arrowup'] || keys['w']) dy -= player.speed;
-                    if (keys['arrowdown'] || keys['s']) dy += player.speed;
-                    if (keys['arrowleft'] || keys['a']) dx -= player.speed;
-                    if (keys['arrowright'] || keys['d']) dx += player.speed;
-                    
-                    if (dx !== 0) player.move(dx, 0, maze);
-                    if (dy !== 0) player.move(0, dy, maze);
+            if (!gameState.won) {
+                let dx = 0, dy = 0;
+                if (keys['arrowup'] || keys['w']) dy -= player.speed;
+                if (keys['arrowdown'] || keys['s']) dy += player.speed;
+                if (keys['arrowleft'] || keys['a']) dx -= player.speed;
+                if (keys['arrowright'] || keys['d']) dx += player.speed;
+                
+                if (dx !== 0) player.move(dx, 0, maze);
+                if (dy !== 0) player.move(0, dy, maze);
 
-                    if (player.checkExit(maze)) {
-                        gameState.won = true;
-                        if (gameMode === 'campaign') {
-                            saveGameState();
-                        }
-                        document.getElementById('win').style.display = 'block';
+                if (player.checkExit(maze)) {
+                    gameState.won = true;
+                    if (gameMode === 'campaign') {
+                        saveGameState();
                     }
-
-                    autoSave();
+                    document.getElementById('win').style.display = 'block';
                 }
 
-                maze.draw(camX, camY);
-                player.draw(camX, camY);
+                autoSave();
             }
+
+            maze.draw(camX, camY);
+            player.draw(camX, camY);
 
             requestAnimationFrame(gameLoop);
         }
 
+        updateUI();
         gameLoop();
 
         window.addEventListener('beforeunload', () => {

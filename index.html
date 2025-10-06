@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maze Explorer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1a1a2e;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            color: #eee;
+        }
+        #gameCanvas {
+            display: block;
+            background: #0f0f1e;
+            cursor: none;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        #seedInput {
+            background: transparent;
+            border: none;
+            color: #eee;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            width: 120px;
+            outline: none;
+            border-bottom: 1px solid #eee;
+            cursor: text;
+        }
+        #win {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,255,100,0.95);
+            color: #000;
+            padding: 40px;
+            border-radius: 15px;
+            font-size: 32px;
+            font-weight: bold;
+            display: none;
+            text-align: center;
+        }
+        .btn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #000;
+            color: #00ff88;
+            border: 2px solid #00ff88;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+        }
+        .btn:hover {
+            background: #00ff88;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui">
+        <div>Level: <span id="level">1</span></div>
+        <div>Seed: <input type="text" id="seedInput" value="0"></div>
+        <div>Controls: Arrow Keys or WASD</div>
+        <div style="margin-top:10px; font-size:12px; color:#888;">Progress auto-saved</div>
+    </div>
+    <div id="win">
+        🎉 EXIT FOUND! 🎉<br>
+        <div style="font-size:16px; margin-top:10px;">Press SPACE for next level</div>
+        <button class="btn" onclick="resetProgress()">Reset Progress</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // LocalStorage key
+        const SAVE_KEY = 'mazeExplorerSave';
+
+        // Load or initialize game state
+        function loadGameState() {
+            const saved = localStorage.getItem(SAVE_KEY);
+            if (saved) {
+                try {
+                    return JSON.parse(saved);
+                } catch (e) {
+                    console.error('Failed to load save data:', e);
+                }
+            }
+            return {
+                level: 1,
+                seed: Date.now(),
+                playerX: 0,
+                playerY: 0,
+                won: false,
+                highestLevel: 1
+            };
+        }
+
+        // Save game state
+        function saveGameState() {
+            try {
+                localStorage.setItem(SAVE_KEY, JSON.stringify(gameState));
+            } catch (e) {
+                console.error('Failed to save game:', e);
+            }
+        }
+
+        // Reset progress
+        function resetProgress() {
+            if (confirm('Are you sure you want to reset all progress?')) {
+                localStorage.removeItem(SAVE_KEY);
+                location.reload();
+            }
+        }
+
+        let gameState = loadGameState();
+
+        // Seeded random number generator
+        class Random {
+            constructor(seed) {
+                this.seed = seed;
+            }
+            next() {
+                this.seed = (this.seed * 9301 + 49297) % 233280;
+                return this.seed / 233280;
+            }
+        }
+
+        // Maze generator using recursive backtracking
+        class Maze {
+            constructor(cols, rows, seed) {
+                this.cols = cols;
+                this.rows = rows;
+                this.cellSize = 20;
+                this.grid = [];
+                this.rng = new Random(seed);
+                
+                // Initialize grid
+                for (let y = 0; y < rows; y++) {
+                    this.grid[y] = [];
+                    for (let x = 0; x < cols; x++) {
+                        this.grid[y][x] = {
+                            walls: { top: true, right: true, bottom: true, left: true },
+                            visited: false
+                        };
+                    }
+                }
+                
+                this.generate(0, 0);
+                this.createExit();
+            }
+
+            generate(x, y) {
+                this.grid[y][x].visited = true;
+                
+                const directions = [
+                    { dx: 0, dy: -1, wall: 'top', opposite: 'bottom' },
+                    { dx: 1, dy: 0, wall: 'right', opposite: 'left' },
+                    { dx: 0, dy: 1, wall: 'bottom', opposite: 'top' },
+                    { dx: -1, dy: 0, wall: 'left', opposite: 'right' }
+                ];
+                
+                // Shuffle directions
+                for (let i = directions.length - 1; i > 0; i--) {
+                    const j = Math.floor(this.rng.next() * (i + 1));
+                    [directions[i], directions[j]] = [directions[j], directions[i]];
+                }
+                
+                for (const dir of directions) {
+                    const nx = x + dir.dx;
+                    const ny = y + dir.dy;
+                    
+                    if (nx >= 0 && nx < this.cols && ny >= 0 && ny < this.rows && !this.grid[ny][nx].visited) {
+                        this.grid[y][x].walls[dir.wall] = false;
+                        this.grid[ny][nx].walls[dir.opposite] = false;
+                        this.generate(nx, ny);
+                    }
+                }
+            }
+
+            createExit() {
+                // Exit at opposite corner
+                const exitX = this.cols - 1;
+                const exitY = this.rows - 1;
+                this.exitX = exitX;
+                this.exitY = exitY;
+                this.grid[exitY][exitX].isExit = true;
+            }
+
+            draw(camX, camY) {
+                ctx.strokeStyle = '#4a90e2';
+                ctx.lineWidth = 2;
+
+                const startCol = Math.max(0, Math.floor(camX / this.cellSize));
+                const endCol = Math.min(this.cols, Math.ceil((camX + canvas.width) / this.cellSize));
+                const startRow = Math.max(0, Math.floor(camY / this.cellSize));
+                const endRow = Math.min(this.rows, Math.ceil((camY + canvas.height) / this.cellSize));
+
+                for (let y = startRow; y < endRow; y++) {
+                    for (let x = startCol; x < endCol; x++) {
+                        const cell = this.grid[y][x];
+                        const screenX = x * this.cellSize - camX;
+                        const screenY = y * this.cellSize - camY;
+
+                        // Draw exit
+                        if (cell.isExit) {
+                            ctx.fillStyle = '#00ff88';
+                            ctx.fillRect(screenX + 2, screenY + 2, this.cellSize - 4, this.cellSize - 4);
+                        }
+
+                        ctx.beginPath();
+                        if (cell.walls.top) {
+                            ctx.moveTo(screenX, screenY);
+                            ctx.lineTo(screenX + this.cellSize, screenY);
+                        }
+                        if (cell.walls.right) {
+                            ctx.moveTo(screenX + this.cellSize, screenY);
+                            ctx.lineTo(screenX + this.cellSize, screenY + this.cellSize);
+                        }
+                        if (cell.walls.bottom) {
+                            ctx.moveTo(screenX, screenY + this.cellSize);
+                            ctx.lineTo(screenX + this.cellSize, screenY + this.cellSize);
+                        }
+                        if (cell.walls.left) {
+                            ctx.moveTo(screenX, screenY);
+                            ctx.lineTo(screenX, screenY + this.cellSize);
+                        }
+                        ctx.stroke();
+                    }
+                }
+
+                // Draw entrance marker
+                ctx.fillStyle = '#ffaa00';
+                ctx.fillRect(-camX + 2, -camY + 2, this.cellSize - 4, this.cellSize - 4);
+            }
+
+            canMove(x, y, dx, dy) {
+                const cellX = Math.floor(x / this.cellSize);
+                const cellY = Math.floor(y / this.cellSize);
+                const newX = x + dx;
+                const newY = y + dy;
+                const newCellX = Math.floor(newX / this.cellSize);
+                const newCellY = Math.floor(newY / this.cellSize);
+
+                if (newCellX < 0 || newCellX >= this.cols || newCellY < 0 || newCellY >= this.rows) {
+                    return false;
+                }
+
+                if (cellX !== newCellX || cellY !== newCellY) {
+                    if (newCellX > cellX && this.grid[cellY][cellX].walls.right) return false;
+                    if (newCellX < cellX && this.grid[cellY][cellX].walls.left) return false;
+                    if (newCellY > cellY && this.grid[cellY][cellX].walls.bottom) return false;
+                    if (newCellY < cellY && this.grid[cellY][cellX].walls.top) return false;
+                }
+
+                return true;
+            }
+        }
+
+        // Player
+        class Player {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.size = 6;
+                this.speed = 3;
+            }
+
+            draw(camX, camY) {
+                ctx.fillStyle = '#ff3366';
+                ctx.beginPath();
+                ctx.arc(this.x - camX, this.y - camY, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Glow effect
+                ctx.fillStyle = 'rgba(255, 51, 102, 0.3)';
+                ctx.beginPath();
+                ctx.arc(this.x - camX, this.y - camY, this.size + 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            move(dx, dy, maze) {
+                if (maze.canMove(this.x, this.y, dx, dy)) {
+                    this.x += dx;
+                    this.y += dy;
+                    gameState.playerX = this.x;
+                    gameState.playerY = this.y;
+                }
+            }
+
+            checkExit(maze) {
+                const cellX = Math.floor(this.x / maze.cellSize);
+                const cellY = Math.floor(this.y / maze.cellSize);
+                return cellX === maze.exitX && cellY === maze.exitY;
+            }
+        }
+
+        // Initialize game from saved state
+        const mazeSize = 5 + gameState.level * 15;
+        let maze = new Maze(mazeSize, mazeSize, gameState.seed);
+        
+        // Check if saved position is within bounds, otherwise reset to start
+        const startX = maze.cellSize / 2;
+        const startY = maze.cellSize / 2;
+        const maxX = maze.cols * maze.cellSize - maze.cellSize / 2;
+        const maxY = maze.rows * maze.cellSize - maze.cellSize / 2;
+        
+        let validX = gameState.playerX || startX;
+        let validY = gameState.playerY || startY;
+        
+        if (validX < startX || validX > maxX || validY < startY || validY > maxY) {
+            validX = startX;
+            validY = startY;
+            gameState.playerX = startX;
+            gameState.playerY = startY;
+        }
+        
+        let player = new Player(validX, validY);
+
+        // Seed input handling
+        const seedInput = document.getElementById('seedInput');
+        seedInput.value = gameState.seed;
+        
+        seedInput.addEventListener('change', () => {
+            const newSeed = parseInt(seedInput.value) || Date.now();
+            gameState.seed = newSeed;
+            seedInput.value = newSeed;
+            
+            // Regenerate maze with new seed and reset player to start
+            const mazeSize = 5 + gameState.level * 15;
+            maze = new Maze(mazeSize, mazeSize, gameState.seed);
+            player = new Player(maze.cellSize / 2, maze.cellSize / 2);
+            gameState.playerX = maze.cellSize / 2;
+            gameState.playerY = maze.cellSize / 2;
+            
+            saveGameState();
+        });
+
+        // Input handling
+        const keys = {};
+        window.addEventListener('keydown', e => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key === ' ' && gameState.won) {
+                nextLevel();
+            }
+        });
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        function nextLevel() {
+            gameState.level++;
+            gameState.seed = Date.now();
+            gameState.won = false;
+            
+            if (gameState.level > gameState.highestLevel) {
+                gameState.highestLevel = gameState.level;
+            }
+            
+            document.getElementById('win').style.display = 'none';
+            
+            const mazeSize = 5 + gameState.level * 15;
+            maze = new Maze(mazeSize, mazeSize, gameState.seed);
+            player = new Player(maze.cellSize / 2, maze.cellSize / 2);
+            
+            // Reset player position in gameState
+            gameState.playerX = maze.cellSize / 2;
+            gameState.playerY = maze.cellSize / 2;
+            
+            saveGameState();
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('level').textContent = gameState.level;
+            document.getElementById('seedInput').value = gameState.seed;
+        }
+
+        // Auto-save periodically
+        let saveTimer = 0;
+        function autoSave() {
+            saveTimer++;
+            if (saveTimer > 60) { // Save every ~1 second
+                saveGameState();
+                saveTimer = 0;
+            }
+        }
+
+        // Game loop
+        function gameLoop() {
+            // Clear screen
+            ctx.fillStyle = '#0f0f1e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Camera follows player
+            const camX = player.x - canvas.width / 2;
+            const camY = player.y - canvas.height / 2;
+
+            // Player movement
+            if (!gameState.won) {
+                let dx = 0, dy = 0;
+                if (keys['arrowup'] || keys['w']) dy -= player.speed;
+                if (keys['arrowdown'] || keys['s']) dy += player.speed;
+                if (keys['arrowleft'] || keys['a']) dx -= player.speed;
+                if (keys['arrowright'] || keys['d']) dx += player.speed;
+                
+                if (dx !== 0) player.move(dx, 0, maze);
+                if (dy !== 0) player.move(0, dy, maze);
+
+                // Check win condition
+                if (player.checkExit(maze)) {
+                    gameState.won = true;
+                    saveGameState();
+                    document.getElementById('win').style.display = 'block';
+                }
+
+                autoSave();
+            }
+
+            // Draw
+            maze.draw(camX, camY);
+            player.draw(camX, camY);
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        updateUI();
+        gameLoop();
+
+        // Save on page unload
+        window.addEventListener('beforeunload', saveGameState);
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>

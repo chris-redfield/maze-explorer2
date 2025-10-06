@@ -197,9 +197,53 @@
 
         // Reset progress
         function resetProgress() {
+            console.log('Reset button clicked');
             if (confirm('Are you sure you want to reset all progress?')) {
-                localStorage.removeItem(SAVE_KEY);
-                location.reload();
+                console.log('User confirmed reset');
+                
+                // Reset game state
+                gameState.level = 1;
+                gameState.seed = Date.now();
+                gameState.won = false;
+                gameState.highestLevel = 1;
+                
+                console.log('Game state reset:', gameState);
+                
+                // Clear localStorage
+                try {
+                    localStorage.removeItem(SAVE_KEY);
+                    console.log('LocalStorage cleared');
+                } catch(e) {
+                    console.log('LocalStorage not available:', e);
+                }
+                
+                // Hide win screen if visible
+                const winScreen = document.getElementById('win');
+                if (winScreen) {
+                    winScreen.style.display = 'none';
+                    console.log('Win screen hidden');
+                } else {
+                    console.log('Win screen element not found');
+                }
+                
+                // Regenerate level 1
+                const mazeSize = 5 + gameState.level * 15;
+                console.log('Creating new maze, size:', mazeSize);
+                maze = new Maze(mazeSize, mazeSize, gameState.seed);
+                player = new Player(maze.cellSize / 2, maze.cellSize / 2);
+                
+                gameState.playerX = maze.cellSize / 2;
+                gameState.playerY = maze.cellSize / 2;
+                
+                console.log('New maze and player created');
+                
+                // Save and update UI
+                saveGameState();
+                updateUI();
+                
+                console.log('Reset complete!');
+            } else {
+                console.log('User cancelled reset');
             }
         }
 

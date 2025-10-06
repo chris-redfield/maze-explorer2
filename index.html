@@ -43,7 +43,7 @@
             position: absolute;
             top: 0;
             height: 100%;
-            opacity: 0.3;
+            opacity: 0.5;
             pointer-events: none;
         }
         
@@ -462,7 +462,7 @@
                 this.rng = new Random(seed);
                 this.stack = [];
                 this.generationComplete = false;
-                this.animationSpeed = 2;
+                this.animationSpeed = 1;
                 
                 this.canvas.width = this.cols * this.cellSize;
                 this.canvas.height = this.rows * this.cellSize;
@@ -595,7 +595,7 @@
             
             if (leftCanvas && rightCanvas) {
                 const mazeHeight = Math.floor(window.innerHeight / 20);
-                const mazeWidth = 15;
+                const mazeWidth = 24;
                 
                 decorativeMazeLeft = new DecorativeMaze(leftCanvas, mazeWidth, mazeHeight, Date.now());
                 decorativeMazeRight = new DecorativeMaze(rightCanvas, mazeWidth, mazeHeight, Date.now() + 1000);
@@ -604,7 +604,7 @@
         
         function animateDecorativeMazes() {
             if (!document.getElementById('startMenu').classList.contains('hidden')) {
-                if (decorativeMazeLeft) {
+                if (decorativeMazeLeft && decorativeMazeLeft.grid && decorativeMazeLeft.grid.length > 0) {
                     for (let i = 0; i < decorativeMazeLeft.animationSpeed; i++) {
                         if (!decorativeMazeLeft.generationComplete) {
                             decorativeMazeLeft.step();
@@ -615,7 +615,7 @@
                     decorativeMazeLeft.draw();
                 }
                 
-                if (decorativeMazeRight) {
+                if (decorativeMazeRight && decorativeMazeRight.grid && decorativeMazeRight.grid.length > 0) {
                     for (let i = 0; i < decorativeMazeRight.animationSpeed; i++) {
                         if (!decorativeMazeRight.generationComplete) {
                             decorativeMazeRight.step();

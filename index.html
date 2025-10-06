@@ -15,6 +15,9 @@
             overflow: hidden;
             font-family: 'Courier New', monospace;
             color: #eee;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
         #gameCanvas {
             display: block;
@@ -70,6 +73,64 @@
             background: #00ff88;
             color: #000;
         }
+        #resetBtn {
+            margin-top: 10px;
+            padding: 5px 10px;
+            font-size: 12px;
+            background: rgba(255,51,102,0.2);
+            color: #ff3366;
+            border: 1px solid #ff3366;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            width: 100%;
+            display: block;
+        }
+        #resetBtn:hover {
+            background: rgba(255,51,102,0.4);
+        }
+        #mobileControls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: none;
+        }
+        .dpad {
+            display: grid;
+            grid-template-columns: 60px 60px 60px;
+            grid-template-rows: 60px 60px 60px;
+            gap: 10px;
+        }
+        .dpad-btn {
+            background: rgba(74, 144, 226, 0.3);
+            border: 2px solid #4a90e2;
+            border-radius: 10px;
+            color: #4a90e2;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+            touch-action: none;
+        }
+        .dpad-btn:active {
+            background: rgba(74, 144, 226, 0.6);
+        }
+        .dpad-up { grid-column: 2; grid-row: 1; }
+        .dpad-left { grid-column: 1; grid-row: 2; }
+        .dpad-right { grid-column: 3; grid-row: 2; }
+        .dpad-down { grid-column: 2; grid-row: 3; }
+        
+        @media (max-width: 768px), (pointer: coarse) {
+            #mobileControls {
+                display: block;
+            }
+            #ui {
+                font-size: 12px;
+                padding: 10px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -79,11 +140,21 @@
         <div>Seed: <input type="text" id="seedInput" value="0"></div>
         <div>Controls: Arrow Keys or WASD</div>
         <div style="margin-top:10px; font-size:12px; color:#888;">Progress auto-saved</div>
+        <button id="resetBtn">Reset Progress</button>
+    </div>
+    <div id="mobileControls">
+        <div class="dpad">
+            <div class="dpad-btn dpad-up" id="btnUp">▲</div>
+            <div class="dpad-btn dpad-left" id="btnLeft">◄</div>
+            <div class="dpad-btn dpad-right" id="btnRight">►</div>
+            <div class="dpad-btn dpad-down" id="▼</div>
+        </div>
     </div>
     <div id="win">
         🎉 EXIT FOUND! 🎉<br>
-        <div style="font-size:16px; margin-top:10px;">Press SPACE for next level</div>
-        <button class="btn" onclick="resetProgress()">Reset Progress</button>
+        <div style="font-size:16px; margin-top:10px;">Press SPACE or tap below</div>
+        <button class="btn" id="nextLevelBtn">Next Level</button>
+        <button class="btn" id="resetBtn2">Reset Progress</button>
     </div>
 
     <script>
@@ -355,6 +426,11 @@
             saveGameState();
         });
 
+        // Reset button handlers
+        document.getElementById('resetBtn').addEventListener('click', resetProgress);
+        document.getElementById('resetBtn2').addEventListener('click', resetProgress);
+        document.getElementById('nextLevelBtn').addEventListener('click', nextLevel);
+
         // Input handling
         const keys = {};
         window.addEventListener('keydown', e => {
@@ -364,6 +440,51 @@
             }
         });
         window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        // Mobile touch controls
+        function setupMobileControls() {
+            const btnUp = document.getElementById('btnUp');
+            const btnDown = document.getElementById('btnDown');
+            const btnLeft = document.getElementById('btnLeft');
+            const btnRight = document.getElementById('btnRight');
+
+            const setupButton = (btn, key) => {
+                if (!btn) return;
+                
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    keys[key] = true;
+                });
+                btn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    keys[key] = false;
+                });
+                btn.addEventListener('touchcancel', (e) => {
+                    e.preventDefault();
+                    keys[key] = false;
+                });
+                
+                // Also support mouse for testing
+                btn.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    keys[key] = true;
+                });
+                btn.addEventListener('mouseup', (e) => {
+                    e.preventDefault();
+                    keys[key] = false;
+                });
+                btn.addEventListener('mouseleave', (e) => {
+                    keys[key] = false;
+                });
+            };
+
+            setupButton(btnUp, 'arrowup');
+            setupButton(btnDown, 'arrowdown');
+            setupButton(btnLeft, 'arrowleft');
+            setupButton(btnRight, 'arrowright');
+        }
+
+        setupMobileControls();
 
         function nextLevel() {
             gameState.level++;

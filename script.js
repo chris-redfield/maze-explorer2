@@ -6,6 +6,7 @@ canvas.height = window.innerHeight;
 // Game mode
 let gameMode = 'campaign';
 let quickMazeConfig = { level: 1, seed: 12345 };
+let movementMode = 'maze'; // 'ball' or 'maze'
 
 // Storage key
 const SAVE_KEY = 'mazeExplorerSave';
@@ -17,6 +18,10 @@ function loadGameState() {
         try {
             const state = JSON.parse(saved);
             state.won = false;
+            // Load movement mode preference
+            if (state.movementMode) {
+                movementMode = state.movementMode;
+            }
             return state;
         } catch (e) {
             console.error('Failed to load save data:', e);
@@ -28,12 +33,14 @@ function loadGameState() {
         playerX: 0,
         playerY: 0,
         won: false,
-        highestLevel: 1
+        highestLevel: 1,
+        movementMode: 'maze'
     };
 }
 
 function saveGameState() {
     try {
+        gameState.movementMode = movementMode;
         localStorage.setItem(SAVE_KEY, JSON.stringify(gameState));
     } catch (e) {
         console.error('Failed to save game:', e);
@@ -261,6 +268,36 @@ function animateDecorativeMazes() {
 }
 
 initDecorativeMazes();
+
+// Movement mode toggle
+document.getElementById('moveBallBtn').addEventListener('click', () => {
+    movementMode = 'ball';
+    document.getElementById('moveBallBtn').classList.add('active');
+    document.getElementById('moveMazeBtn').classList.remove('active');
+    if (gameMode === 'campaign') {
+        gameState.movementMode = movementMode;
+        saveGameState();
+    }
+});
+
+document.getElementById('moveMazeBtn').addEventListener('click', () => {
+    movementMode = 'maze';
+    document.getElementById('moveMazeBtn').classList.add('active');
+    document.getElementById('moveBallBtn').classList.remove('active');
+    if (gameMode === 'campaign') {
+        gameState.movementMode = movementMode;
+        saveGameState();
+    }
+});
+
+// Initialize toggle button states
+if (movementMode === 'ball') {
+    document.getElementById('moveBallBtn').classList.add('active');
+    document.getElementById('moveMazeBtn').classList.remove('active');
+} else {
+    document.getElementById('moveMazeBtn').classList.add('active');
+    document.getElementById('moveBallBtn').classList.remove('active');
+}
 
 // Maze generator
 class Maze {
@@ -646,8 +683,29 @@ function gameLoop() {
     ctx.fillStyle = '#0f0f1e';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const camX = player.x - canvas.width / 2;
-    const camY = player.y - canvas.height / 2;
+    let camX, camY;
+    
+    if (movementMode === 'maze') {
+        // Move Maze mode: camera follows player (current behavior)
+        camX = player.x - canvas.width / 2;
+        camY = player.y - canvas.height / 2;
+    } else {
+        // Move Ball mode: camera centered, player moves freely
+        const mazeWidth = maze.cols * maze.cellSize;
+        const mazeHeight = maze.rows * maze.cellSize;
+        
+        // Center the maze on screen
+        camX = (mazeWidth - canvas.width) / 2;
+        camY = (mazeHeight - canvas.height) / 2;
+        
+        // If maze is smaller than screen, center it
+        if (mazeWidth < canvas.width) {
+            camX = -((canvas.width - mazeWidth) / 2);
+        }
+        if (mazeHeight < canvas.height) {
+            camY = -((canvas.height - mazeHeight) / 2);
+        }
+    }
 
     if (!gameState.won) {
         let dx = 0, dy = 0;

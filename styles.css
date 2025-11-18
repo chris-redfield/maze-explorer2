@@ -71,6 +71,49 @@ body {
     min-width: 400px;
 }
 
+.movement-toggle {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 15px 20px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+}
+
+.toggle-label {
+    font-size: 14px;
+    color: #888;
+    text-align: center;
+}
+
+.toggle-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.toggle-btn {
+    flex: 1;
+    background: rgba(74, 144, 226, 0.1);
+    border: 2px solid #4a90e2;
+    padding: 12px 20px;
+    font-size: 16px;
+    color: #4a90e2;
+    cursor: pointer;
+    transition: all 0.3s;
+    border-radius: 5px;
+    font-family: 'Courier New', monospace;
+}
+
+.toggle-btn:hover {
+    background: rgba(74, 144, 226, 0.2);
+}
+
+.toggle-btn.active {
+    background: #4a90e2;
+    color: #1a1a2e;
+    font-weight: bold;
+}
+
 .menu-item {
     background: rgba(74, 144, 226, 0.1);
     border: 2px solid #4a90e2;
@@ -181,6 +224,13 @@ body {
     }
     .control-input {
         width: 100%;
+    }
+    .toggle-buttons {
+        flex-direction: row;
+    }
+    .toggle-btn {
+        font-size: 14px;
+        padding: 10px 15px;
     }
 }
 

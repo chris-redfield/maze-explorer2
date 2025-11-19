@@ -414,26 +414,80 @@ class Maze {
         ctx.fillRect(-camX + 2, -camY + 2, this.cellSize - 4, this.cellSize - 4);
     }
 
-    canMove(x, y, dx, dy) {
-        const cellX = Math.floor(x / this.cellSize);
-        const cellY = Math.floor(y / this.cellSize);
+    canMove(x, y, dx, dy, radius) {
         const newX = x + dx;
         const newY = y + dy;
-        const newCellX = Math.floor(newX / this.cellSize);
-        const newCellY = Math.floor(newY / this.cellSize);
-
-        if (newCellX < 0 || newCellX >= this.cols || newCellY < 0 || newCellY >= this.rows) {
+        
+        // Check boundaries first
+        if (newX - radius < 0 || newX + radius >= this.cols * this.cellSize || 
+            newY - radius < 0 || newY + radius >= this.rows * this.cellSize) {
             return false;
         }
-
-        if (cellX !== newCellX || cellY !== newCellY) {
-            if (newCellX > cellX && this.grid[cellY][cellX].walls.right) return false;
-            if (newCellX < cellX && this.grid[cellY][cellX].walls.left) return false;
-            if (newCellY > cellY && this.grid[cellY][cellX].walls.bottom) return false;
-            if (newCellY < cellY && this.grid[cellY][cellX].walls.top) return false;
+        
+        // Get the range of cells the ball might be in
+        const minCellX = Math.max(0, Math.floor((newX - radius) / this.cellSize));
+        const maxCellX = Math.min(this.cols - 1, Math.floor((newX + radius) / this.cellSize));
+        const minCellY = Math.max(0, Math.floor((newY - radius) / this.cellSize));
+        const maxCellY = Math.min(this.rows - 1, Math.floor((newY + radius) / this.cellSize));
+        
+        // Check collision with walls in all potentially intersecting cells
+        for (let cellY = minCellY; cellY <= maxCellY; cellY++) {
+            for (let cellX = minCellX; cellX <= maxCellX; cellX++) {
+                const cell = this.grid[cellY][cellX];
+                const cellLeft = cellX * this.cellSize;
+                const cellTop = cellY * this.cellSize;
+                const cellRight = cellLeft + this.cellSize;
+                const cellBottom = cellTop + this.cellSize;
+                
+                // Check collision with each wall of the cell
+                if (cell.walls.top && this.circleLineIntersect(newX, newY, radius, cellLeft, cellTop, cellRight, cellTop)) {
+                    return false;
+                }
+                if (cell.walls.bottom && this.circleLineIntersect(newX, newY, radius, cellLeft, cellBottom, cellRight, cellBottom)) {
+                    return false;
+                }
+                if (cell.walls.left && this.circleLineIntersect(newX, newY, radius, cellLeft, cellTop, cellLeft, cellBottom)) {
+                    return false;
+                }
+                if (cell.walls.right && this.circleLineIntersect(newX, newY, radius, cellRight, cellTop, cellRight, cellBottom)) {
+                    return false;
+                }
+            }
         }
-
+        
         return true;
+    }
+    
+    circleLineIntersect(cx, cy, radius, x1, y1, x2, y2) {
+        // Calculate distance from circle center to line segment
+        const A = cx - x1;
+        const B = cy - y1;
+        const C = x2 - x1;
+        const D = y2 - y1;
+        
+        const dot = A * C + B * D;
+        const lenSq = C * C + D * D;
+        
+        if (lenSq === 0) {
+            // Line segment is a point
+            const dx = cx - x1;
+            const dy = cy - y1;
+            return (dx * dx + dy * dy) <= radius * radius;
+        }
+        
+        let param = dot / lenSq;
+        
+        // Clamp to line segment
+        if (param < 0) param = 0;
+        if (param > 1) param = 1;
+        
+        const xx = x1 + param * C;
+        const yy = y1 + param * D;
+        
+        const dx = cx - xx;
+        const dy = cy - yy;
+        
+        return (dx * dx + dy * dy) <= radius * radius;
     }
 }
 
@@ -443,6 +497,7 @@ class Player {
         this.x = x;
         this.y = y;
         this.size = 6;
+        this.collisionRadius = this.size * 0.4;
         this.speed = 3;
     }
 
@@ -459,7 +514,7 @@ class Player {
     }
 
     move(dx, dy, maze) {
-        if (maze.canMove(this.x, this.y, dx, dy)) {
+        if (maze.canMove(this.x, this.y, dx, dy, this.collisionRadius)) {
             this.x += dx;
             this.y += dy;
             if (gameMode === 'campaign') {

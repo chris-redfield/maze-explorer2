@@ -8,6 +8,18 @@ let gameMode = 'campaign';
 let quickMazeConfig = { level: 1, seed: 12345 };
 let movementMode = 'maze'; // 'ball' or 'maze'
 
+// Zoom-out animation state for campaign mode level completion
+let zoomAnimation = {
+    active: false,
+    completed: false, // Stays true to keep zoomed-out view after animation
+    progress: 0,
+    startZoom: 1,
+    targetZoom: 1,
+    duration: 90, // frames (~1.5 seconds at 60fps)
+    startCamX: 0,
+    startCamY: 0
+};
+
 // Storage key
 const SAVE_KEY = 'mazeExplorerSave';
 
@@ -50,6 +62,8 @@ function saveGameState() {
 function resetCurrentMaze() {
     if (gameMode === 'campaign') {
         if (confirm('Reset current maze?')) {
+            zoomAnimation.active = false;
+            zoomAnimation.completed = false;
             campaignMaze = new CampaignMaze(gameState.level, gameState.seed);
             maze = campaignMaze;
             const startPos = campaignMaze.getStartPosition();
@@ -72,6 +86,8 @@ function resetCurrentMaze() {
 }
 
 function returnToMenu() {
+    zoomAnimation.active = false;
+    zoomAnimation.completed = false;
     document.getElementById('startMenu').classList.remove('hidden');
     document.getElementById('win').style.display = 'none';
     document.getElementById('campaignControls').style.display = 'none';
@@ -667,6 +683,8 @@ document.getElementById('resetBtn').addEventListener('click', resetCurrentMaze);
 document.getElementById('menuBtn').addEventListener('click', returnToMenu);
 document.getElementById('menuBtn2').addEventListener('click', returnToMenu);
 document.getElementById('nextLevelBtn').addEventListener('click', () => {
+    zoomAnimation.active = false;
+    zoomAnimation.completed = false;
     if (gameMode === 'campaign') {
         if (gameState.level >= 8) {
             alert('Congratulations! You\'ve completed all 8 levels!\n\nStarting from Level 1 again...');
@@ -858,20 +876,89 @@ function gameLoop() {
             gameState.won = true;
             if (gameMode === 'campaign') {
                 saveGameState();
+                // Start zoom-out animation for campaign mode
+                const mazeWidth = campaignMaze.cols * campaignMaze.cellSize;
+                const mazeHeight = campaignMaze.rows * campaignMaze.cellSize;
+                const scaleX = canvas.width / mazeWidth;
+                const scaleY = canvas.height / mazeHeight;
+                zoomAnimation.targetZoom = Math.min(scaleX, scaleY) * 0.9; // 90% to add some margin
+                zoomAnimation.startZoom = 1;
+                zoomAnimation.progress = 0;
+                zoomAnimation.startCamX = camX;
+                zoomAnimation.startCamY = camY;
+                zoomAnimation.active = true;
+            } else {
+                // Quick mode: show win message immediately
+                document.getElementById('win').style.display = 'block';
             }
-            document.getElementById('win').style.display = 'block';
         }
 
         autoSave();
     }
 
-    // Draw maze
-    if (gameMode === 'campaign' && campaignMaze) {
-        campaignMaze.draw(camX, camY, ctx, canvas);
+    // Handle zoom-out animation and static zoomed view for campaign mode completion
+    if ((zoomAnimation.active || zoomAnimation.completed) && gameMode === 'campaign' && campaignMaze) {
+        let currentZoom;
+        let animCamX, animCamY;
+
+        const mazeWidth = campaignMaze.cols * campaignMaze.cellSize;
+        const mazeHeight = campaignMaze.rows * campaignMaze.cellSize;
+
+        if (zoomAnimation.active) {
+            zoomAnimation.progress++;
+
+            // Easing function for smooth animation
+            const t = Math.min(zoomAnimation.progress / zoomAnimation.duration, 1);
+            const easeOut = 1 - Math.pow(1 - t, 3); // Cubic ease-out
+
+            // Interpolate zoom level
+            currentZoom = zoomAnimation.startZoom + (zoomAnimation.targetZoom - zoomAnimation.startZoom) * easeOut;
+
+            // Calculate target camera position to center the entire maze
+            const targetCamX = (mazeWidth - canvas.width / currentZoom) / 2;
+            const targetCamY = (mazeHeight - canvas.height / currentZoom) / 2;
+
+            // Interpolate camera position
+            animCamX = zoomAnimation.startCamX + (targetCamX - zoomAnimation.startCamX) * easeOut;
+            animCamY = zoomAnimation.startCamY + (targetCamY - zoomAnimation.startCamY) * easeOut;
+
+            // Check if animation is complete
+            if (zoomAnimation.progress >= zoomAnimation.duration) {
+                zoomAnimation.active = false;
+                zoomAnimation.completed = true;
+                document.getElementById('win').style.display = 'block';
+            }
+        } else {
+            // Static zoomed-out view after animation completes
+            currentZoom = zoomAnimation.targetZoom;
+            animCamX = (mazeWidth - canvas.width / currentZoom) / 2;
+            animCamY = (mazeHeight - canvas.height / currentZoom) / 2;
+        }
+
+        // Apply zoom transform
+        ctx.save();
+        ctx.scale(currentZoom, currentZoom);
+
+        // Create scaled canvas dimensions for proper culling
+        const scaledCanvas = {
+            width: canvas.width / currentZoom,
+            height: canvas.height / currentZoom
+        };
+
+        // Draw with animated camera and scaled dimensions
+        campaignMaze.draw(animCamX, animCamY, ctx, scaledCanvas);
+        player.draw(animCamX, animCamY);
+
+        ctx.restore();
     } else {
-        maze.draw(camX, camY);
+        // Normal drawing (no zoom animation)
+        if (gameMode === 'campaign' && campaignMaze) {
+            campaignMaze.draw(camX, camY, ctx, canvas);
+        } else {
+            maze.draw(camX, camY);
+        }
+        player.draw(camX, camY);
     }
-    player.draw(camX, camY);
 
     requestAnimationFrame(gameLoop);
 }

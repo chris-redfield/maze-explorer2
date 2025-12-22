@@ -141,6 +141,10 @@ class CampaignMaze {
         // Step 6: Set up start and exit
         this.setupStartAndExit(leaves);
 
+        // Step 7: Place teleport cells (amount = level)
+        this.teleportCells = [];
+        this.placeTeleportCells(leaves);
+
         // Store regions for later use
         this.regions = leaves;
 
@@ -150,6 +154,129 @@ class CampaignMaze {
         // Initialize current region for camera tracking
         this.currentRegion = this.startRegion;
         this.currentCorridor = null;
+    }
+
+    placeTeleportCells(leaves) {
+        // No teleports before level 3
+        // Level 3 = 1, Level 4 = 2, Level 5 = 3, etc.
+        if (this.level < 3) return;
+        const numTeleports = this.level - 2;
+
+        const availableCorners = [];
+
+        // Collect all available corners from all regions (except starting and final region)
+        for (const leaf of leaves) {
+            const reg = leaf.region;
+            if (!reg) continue;
+
+            // Skip the starting mini-maze entirely
+            if (leaf === this.startRegion) continue;
+
+            // Skip the final mini-maze (where exit is) entirely
+            if (leaf === this.exitRegion) continue;
+
+            // Four corners of each mini-maze
+            const corners = [
+                { x: reg.startX, y: reg.startY, region: leaf },                           // top-left
+                { x: reg.startX + reg.width - 1, y: reg.startY, region: leaf },           // top-right
+                { x: reg.startX, y: reg.startY + reg.height - 1, region: leaf },          // bottom-left
+                { x: reg.startX + reg.width - 1, y: reg.startY + reg.height - 1, region: leaf } // bottom-right
+            ];
+
+            for (const corner of corners) {
+                availableCorners.push(corner);
+            }
+        }
+
+        // Shuffle corners and pick the first numTeleports
+        this.shuffleArray(availableCorners);
+
+        for (let i = 0; i < Math.min(numTeleports, availableCorners.length); i++) {
+            const corner = availableCorners[i];
+            if (corner.y < this.rows && corner.x < this.cols) {
+                this.grid[corner.y][corner.x].isTeleport = true;
+                this.teleportCells.push({
+                    x: corner.x,
+                    y: corner.y,
+                    region: corner.region
+                });
+            }
+        }
+    }
+
+    // Get a random teleport destination
+    // 1/3 chance: teleport to a NEW undiscovered region
+    // 2/3 chance: teleport to a known region's starting position
+    getRandomTeleportDestination(currentX, currentY) {
+        const roll = this.rng.next();
+
+        // Get current region to exclude it
+        const currentCellX = Math.floor(currentX / this.cellSize);
+        const currentCellY = Math.floor(currentY / this.cellSize);
+        let currentRegionId = -1;
+        if (currentCellY >= 0 && currentCellY < this.rows && currentCellX >= 0 && currentCellX < this.cols) {
+            currentRegionId = this.grid[currentCellY][currentCellX].regionId;
+        }
+
+        if (roll < 1/3) {
+            // 1/3 chance: Teleport to a NEW undiscovered region
+            const undiscoveredRegions = this.regions.filter(r =>
+                !r.discovered && r.regionId !== currentRegionId
+            );
+
+            if (undiscoveredRegions.length > 0) {
+                const dest = undiscoveredRegions[Math.floor(this.rng.next() * undiscoveredRegions.length)];
+                dest.discovered = true;
+                this.currentRegion = dest;
+                this.currentCorridor = null;
+
+                return {
+                    x: dest.region.startX * this.cellSize + this.cellSize / 2,
+                    y: dest.region.startY * this.cellSize + this.cellSize / 2
+                };
+            }
+            // Fall through to known regions if no undiscovered ones
+        }
+
+        // 2/3 chance (or fallback): Teleport to a known region's starting position
+        const discoveredRegions = this.regions.filter(r =>
+            r.discovered && r.regionId !== currentRegionId
+        );
+
+        if (discoveredRegions.length > 0) {
+            const dest = discoveredRegions[Math.floor(this.rng.next() * discoveredRegions.length)];
+            this.currentRegion = dest;
+            this.currentCorridor = null;
+
+            return {
+                x: dest.region.startX * this.cellSize + this.cellSize / 2,
+                y: dest.region.startY * this.cellSize + this.cellSize / 2
+            };
+        }
+
+        return null;
+    }
+
+    // Check if player is on a teleport cell
+    checkTeleport(playerX, playerY) {
+        const cellX = Math.floor(playerX / this.cellSize);
+        const cellY = Math.floor(playerY / this.cellSize);
+
+        if (cellY >= 0 && cellY < this.rows && cellX >= 0 && cellX < this.cols) {
+            const cell = this.grid[cellY][cellX];
+            if (cell.isTeleport) {
+                const dest = this.getRandomTeleportDestination(playerX, playerY);
+                if (dest) {
+                    // Remove the teleport cell after use
+                    cell.isTeleport = false;
+                    this.teleportCells = this.teleportCells.filter(t =>
+                        t.x !== cellX || t.y !== cellY
+                    );
+                }
+                return dest;
+            }
+        }
+        return null;
     }
 
     performSplits() {
@@ -673,6 +800,20 @@ class CampaignMaze {
                 if (cell.isStart) {
                     ctx.fillStyle = '#ffaa00';
                     ctx.fillRect(screenX + 2, screenY + 2, this.cellSize - 4, this.cellSize - 4);
+                }
+
+                // Draw teleport cell (purple background with green ?)
+                if (cell.isTeleport) {
+                    // Purple background
+                    ctx.fillStyle = '#8b5cf6';
+                    ctx.fillRect(screenX + 2, screenY + 2, this.cellSize - 4, this.cellSize - 4);
+
+                    // Green "?" text
+                    ctx.fillStyle = '#00ff88';
+                    ctx.font = 'bold 14px Courier New';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('?', screenX + this.cellSize / 2, screenY + this.cellSize / 2);
                 }
 
                 // Draw walls

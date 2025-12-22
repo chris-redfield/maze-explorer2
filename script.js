@@ -535,6 +535,7 @@ class Player {
 
 let maze, player;
 let campaignMaze = null; // BSP maze for campaign mode
+let teleportCooldown = 0; // Frames to wait before teleporting again
 
 function startGame(mode, config = null) {
     gameMode = mode;
@@ -543,6 +544,9 @@ function startGame(mode, config = null) {
     if (mode === 'campaign') {
         if (gameState.level > 8) gameState.level = 8;
         if (gameState.highestLevel > 8) gameState.highestLevel = 8;
+
+        // Reset teleport cooldown
+        teleportCooldown = 0;
 
         // Use BSP maze for campaign mode
         campaignMaze = new CampaignMaze(gameState.level, gameState.seed);
@@ -826,6 +830,20 @@ function gameLoop() {
         // Check discovery for campaign mode
         if (gameMode === 'campaign' && campaignMaze) {
             campaignMaze.checkDiscovery(player.x, player.y);
+
+            // Check teleport (with cooldown to prevent rapid re-teleporting)
+            if (teleportCooldown > 0) {
+                teleportCooldown--;
+            } else {
+                const teleportDest = campaignMaze.checkTeleport(player.x, player.y);
+                if (teleportDest) {
+                    player.x = teleportDest.x;
+                    player.y = teleportDest.y;
+                    gameState.playerX = player.x;
+                    gameState.playerY = player.y;
+                    teleportCooldown = 60; // ~1 second cooldown at 60fps
+                }
+            }
         }
 
         // Check win condition

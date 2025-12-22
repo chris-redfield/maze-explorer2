@@ -68,7 +68,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 20px;
-    min-width: 400px;
+    min-width: 450px;
 }
 
 .movement-toggle {
@@ -156,13 +156,14 @@ body {
     flex: 1;
     background: rgba(74, 144, 226, 0.1);
     border: 2px solid #4a90e2;
-    padding: 12px 20px;
-    font-size: 16px;
+    padding: 12px 15px;
+    font-size: 14px;
     color: #4a90e2;
     cursor: pointer;
     transition: all 0.3s;
     border-radius: 5px;
     font-family: 'Courier New', monospace;
+    white-space: nowrap;
 }
 
 .campaign-btn:hover {

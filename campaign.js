@@ -397,9 +397,12 @@ class CampaignMaze {
         while (true) {
             if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
                 const cell = this.grid[y][x];
-                cell.isCorridor = true;
-                cell.regionId = -2; // Special ID for corridors
-                corridor.push({ x, y });
+                // Only mark as corridor if not already part of a region
+                if (cell.regionId === -1) {
+                    cell.isCorridor = true;
+                    cell.regionId = -2; // Special ID for corridors
+                    corridor.push({ x, y });
+                }
 
                 // Open wall to previous cell
                 if (prevX >= 0 && prevY >= 0) {
@@ -524,14 +527,14 @@ class CampaignMaze {
         if (cellY >= 0 && cellY < this.rows && cellX >= 0 && cellX < this.cols) {
             const cell = this.grid[cellY][cellX];
 
-            // Check if in a corridor
-            if (cell.isCorridor) {
+            // Check if actually in a corridor cell (regionId === -2)
+            if (cell.isCorridor && cell.regionId === -2) {
                 // Find which corridor and discover it
                 for (const corridor of this.corridors) {
                     for (const c of corridor.cells) {
                         if (c.x === cellX && c.y === cellY) {
                             corridor.discovered = true;
-                            // Update current location for camera
+                            // Update current location for camera - only when IN the corridor
                             this.currentCorridor = corridor;
                             this.currentRegion = null;
                             break;
@@ -539,11 +542,9 @@ class CampaignMaze {
                     }
                 }
             }
-
-            // Check if in a region
-            const regionId = cell.regionId;
-            if (regionId >= 0 && regionId < this.regions.length) {
-                const region = this.regions[regionId];
+            // Check if in a region (not a corridor)
+            else if (cell.regionId >= 0 && cell.regionId < this.regions.length) {
+                const region = this.regions[cell.regionId];
                 if (!region.discovered) {
                     region.discovered = true;
                 }
@@ -553,7 +554,7 @@ class CampaignMaze {
 
                 // Discover corridors that connect to this region
                 for (const corridor of this.corridors) {
-                    if (corridor.connects.includes(regionId)) {
+                    if (corridor.connects.includes(cell.regionId)) {
                         corridor.discovered = true;
                     }
                 }
@@ -612,11 +613,15 @@ class CampaignMaze {
         for (const corridor of this.corridors) {
             if (corridor.discovered) {
                 for (const c of corridor.cells) {
+                    // Only draw if this cell is actually a corridor cell
                     if (c.x >= startCol && c.x < endCol && c.y >= startRow && c.y < endRow) {
-                        const screenX = c.x * this.cellSize - camX;
-                        const screenY = c.y * this.cellSize - camY;
-                        ctx.fillStyle = 'rgba(74, 144, 226, 0.3)';
-                        ctx.fillRect(screenX, screenY, this.cellSize, this.cellSize);
+                        const cell = this.grid[c.y][c.x];
+                        if (cell.regionId === -2) { // Only actual corridor cells
+                            const screenX = c.x * this.cellSize - camX;
+                            const screenY = c.y * this.cellSize - camY;
+                            ctx.fillStyle = 'rgba(74, 144, 226, 0.3)';
+                            ctx.fillRect(screenX, screenY, this.cellSize, this.cellSize);
+                        }
                     }
                 }
             }

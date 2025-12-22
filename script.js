@@ -20,6 +20,14 @@ let zoomAnimation = {
     startCamY: 0
 };
 
+// Smooth camera transition for campaign mode region/corridor switching
+let smoothCam = {
+    x: 0,
+    y: 0,
+    initialized: false,
+    lerpFactor: 0.03 // Lower = slower transition (0.03 is ~50% slower than typical 0.06)
+};
+
 // Storage key
 const SAVE_KEY = 'mazeExplorerSave';
 
@@ -64,6 +72,7 @@ function resetCurrentMaze() {
         if (confirm('Reset current maze?')) {
             zoomAnimation.active = false;
             zoomAnimation.completed = false;
+            smoothCam.initialized = false;
             campaignMaze = new CampaignMaze(gameState.level, gameState.seed);
             maze = campaignMaze;
             const startPos = campaignMaze.getStartPosition();
@@ -88,6 +97,7 @@ function resetCurrentMaze() {
 function returnToMenu() {
     zoomAnimation.active = false;
     zoomAnimation.completed = false;
+    smoothCam.initialized = false;
     document.getElementById('startMenu').classList.remove('hidden');
     document.getElementById('win').style.display = 'none';
     document.getElementById('campaignControls').style.display = 'none';
@@ -556,6 +566,7 @@ let teleportCooldown = 0; // Frames to wait before teleporting again
 function startGame(mode, config = null) {
     gameMode = mode;
     document.getElementById('startMenu').classList.add('hidden');
+    smoothCam.initialized = false;
 
     if (mode === 'campaign') {
         if (gameState.level > 8) gameState.level = 8;
@@ -685,6 +696,7 @@ document.getElementById('menuBtn2').addEventListener('click', returnToMenu);
 document.getElementById('nextLevelBtn').addEventListener('click', () => {
     zoomAnimation.active = false;
     zoomAnimation.completed = false;
+    smoothCam.initialized = false;
     if (gameMode === 'campaign') {
         if (gameState.level >= 8) {
             alert('Congratulations! You\'ve completed all 8 levels!\n\nStarting from Level 1 again...');
@@ -816,8 +828,20 @@ function gameLoop() {
         if (gameMode === 'campaign' && campaignMaze) {
             // Use the campaign maze's camera method for region-based centering
             const cam = campaignMaze.getCameraForMoveBallMode(canvas);
-            camX = cam.camX;
-            camY = cam.camY;
+
+            // Initialize smooth camera on first frame
+            if (!smoothCam.initialized) {
+                smoothCam.x = cam.camX;
+                smoothCam.y = cam.camY;
+                smoothCam.initialized = true;
+            }
+
+            // Smoothly interpolate camera position
+            smoothCam.x += (cam.camX - smoothCam.x) * smoothCam.lerpFactor;
+            smoothCam.y += (cam.camY - smoothCam.y) * smoothCam.lerpFactor;
+
+            camX = smoothCam.x;
+            camY = smoothCam.y;
         } else {
             // Quick maze mode: center the whole maze
             const mazeWidth = maze.cols * maze.cellSize;

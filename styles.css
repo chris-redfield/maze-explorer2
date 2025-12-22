@@ -141,6 +141,43 @@ body {
     box-shadow: none;
 }
 
+.campaign-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.campaign-controls {
+    display: flex;
+    gap: 10px;
+}
+
+.campaign-btn {
+    flex: 1;
+    background: rgba(74, 144, 226, 0.1);
+    border: 2px solid #4a90e2;
+    padding: 12px 20px;
+    font-size: 16px;
+    color: #4a90e2;
+    cursor: pointer;
+    transition: all 0.3s;
+    border-radius: 5px;
+    font-family: 'Courier New', monospace;
+}
+
+.campaign-btn:hover {
+    background: rgba(74, 144, 226, 0.3);
+}
+
+.campaign-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.campaign-btn:disabled:hover {
+    background: rgba(74, 144, 226, 0.1);
+}
+
 .quick-maze-container {
     display: flex;
     flex-direction: column;

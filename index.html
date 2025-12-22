@@ -13,8 +13,14 @@
         <canvas id="decorativeMazeRight"></canvas>
         <div class="menu-title">MAZE EXPLORER</div>
         <div class="menu-options">
-            <div class="menu-item" id="campaignBtn">
-                CAMPAIGN MODE
+            <div class="campaign-container">
+                <div class="menu-item" id="campaignBtn">
+                    CAMPAIGN MODE
+                </div>
+                <div class="campaign-controls" id="campaignControls" style="display: none;">
+                    <button class="campaign-btn" id="continueBtn">Continue (Level <span id="savedLevel">1</span>)</button>
+                    <button class="campaign-btn" id="newGameBtn">New Game</button>
+                </div>
             </div>
             <div class="quick-maze-container">
                 <div class="quick-maze-option" id="quickMazeBtn">
@@ -67,6 +73,7 @@
         <button class="btn" id="menuBtn2">Main Menu</button>
     </div>
 
+    <script src="campaign.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

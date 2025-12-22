@@ -50,11 +50,12 @@ function saveGameState() {
 function resetCurrentMaze() {
     if (gameMode === 'campaign') {
         if (confirm('Reset current maze?')) {
-            const mazeSize = 5 + gameState.level * 15;
-            maze = new Maze(mazeSize, mazeSize, gameState.seed);
-            player = new Player(maze.cellSize / 2, maze.cellSize / 2);
-            gameState.playerX = maze.cellSize / 2;
-            gameState.playerY = maze.cellSize / 2;
+            campaignMaze = new CampaignMaze(gameState.level, gameState.seed);
+            maze = campaignMaze;
+            const startPos = campaignMaze.getStartPosition();
+            player = new Player(startPos.x, startPos.y);
+            gameState.playerX = startPos.x;
+            gameState.playerY = startPos.y;
             gameState.won = false;
             document.getElementById('win').style.display = 'none';
             saveGameState();
@@ -73,6 +74,7 @@ function resetCurrentMaze() {
 function returnToMenu() {
     document.getElementById('startMenu').classList.remove('hidden');
     document.getElementById('win').style.display = 'none';
+    document.getElementById('campaignControls').style.display = 'none';
     gameState.won = false;
 }
 
@@ -532,43 +534,84 @@ class Player {
 }
 
 let maze, player;
+let campaignMaze = null; // BSP maze for campaign mode
 
 function startGame(mode, config = null) {
     gameMode = mode;
     document.getElementById('startMenu').classList.add('hidden');
-    
+
     if (mode === 'campaign') {
         if (gameState.level > 8) gameState.level = 8;
         if (gameState.highestLevel > 8) gameState.highestLevel = 8;
-        
-        const mazeSize = 5 + gameState.level * 15;
-        maze = new Maze(mazeSize, mazeSize, gameState.seed);
-        
-        const startX = maze.cellSize / 2;
-        const startY = maze.cellSize / 2;
-        
-        let validX = gameState.playerX || startX;
-        let validY = gameState.playerY || startY;
-        
-        player = new Player(validX, validY);
+
+        // Use BSP maze for campaign mode
+        campaignMaze = new CampaignMaze(gameState.level, gameState.seed);
+        maze = campaignMaze; // For compatibility
+
+        const startPos = campaignMaze.getStartPosition();
+
+        // Always start at the beginning of the maze for BSP campaigns
+        // The old save position may not be valid for the new BSP structure
+        player = new Player(startPos.x, startPos.y);
+        gameState.playerX = startPos.x;
+        gameState.playerY = startPos.y;
+        saveGameState();
     } else {
+        campaignMaze = null;
         quickMazeConfig = config;
         if (quickMazeConfig.level > 8) quickMazeConfig.level = 8;
-        
+
         const mazeSize = 5 + quickMazeConfig.level * 15;
         maze = new Maze(mazeSize, mazeSize, quickMazeConfig.seed);
         player = new Player(maze.cellSize / 2, maze.cellSize / 2);
     }
-    
+
     updateUI();
+}
+
+// Campaign menu handling
+function updateCampaignMenu() {
+    const continueBtn = document.getElementById('continueBtn');
+    const savedLevelSpan = document.getElementById('savedLevel');
+    const hasSavedProgress = gameState.level > 1 || gameState.highestLevel > 1;
+
+    savedLevelSpan.textContent = gameState.level;
+
+    if (hasSavedProgress) {
+        continueBtn.disabled = false;
+    } else {
+        continueBtn.disabled = true;
+    }
 }
 
 // Menu button handlers
 document.getElementById('campaignBtn').addEventListener('click', () => {
+    const controls = document.getElementById('campaignControls');
+    const isVisible = controls.style.display !== 'none';
+
+    if (isVisible) {
+        controls.style.display = 'none';
+    } else {
+        controls.style.display = 'flex';
+        updateCampaignMenu();
+    }
+});
+
+document.getElementById('continueBtn').addEventListener('click', () => {
     if (gameState.level > 8) {
         gameState.level = 8;
         saveGameState();
     }
+    startGame('campaign');
+});
+
+document.getElementById('newGameBtn').addEventListener('click', () => {
+    gameState.level = 1;
+    gameState.seed = Date.now();
+    gameState.playerX = 0;
+    gameState.playerY = 0;
+    gameState.won = false;
+    saveGameState();
     startGame('campaign');
 });
 
@@ -595,14 +638,15 @@ document.getElementById('quickLevel').addEventListener('input', (e) => {
 const seedInput = document.getElementById('seedInput');
 seedInput.addEventListener('change', () => {
     const newSeed = parseInt(seedInput.value) || Date.now();
-    
+
     if (gameMode === 'campaign') {
         gameState.seed = newSeed;
-        const mazeSize = 5 + gameState.level * 15;
-        maze = new Maze(mazeSize, mazeSize, gameState.seed);
-        player = new Player(maze.cellSize / 2, maze.cellSize / 2);
-        gameState.playerX = maze.cellSize / 2;
-        gameState.playerY = maze.cellSize / 2;
+        campaignMaze = new CampaignMaze(gameState.level, gameState.seed);
+        maze = campaignMaze;
+        const startPos = campaignMaze.getStartPosition();
+        player = new Player(startPos.x, startPos.y);
+        gameState.playerX = startPos.x;
+        gameState.playerY = startPos.y;
         saveGameState();
     } else {
         quickMazeConfig.seed = newSeed;
@@ -610,7 +654,7 @@ seedInput.addEventListener('change', () => {
         maze = new Maze(mazeSize, mazeSize, quickMazeConfig.seed);
         player = new Player(maze.cellSize / 2, maze.cellSize / 2);
     }
-    
+
     updateUI();
 });
 
@@ -621,39 +665,40 @@ document.getElementById('menuBtn2').addEventListener('click', returnToMenu);
 document.getElementById('nextLevelBtn').addEventListener('click', () => {
     if (gameMode === 'campaign') {
         if (gameState.level >= 8) {
-            alert('🎉 Congratulations! You\'ve completed all 8 levels!\n\nStarting from Level 1 again...');
+            alert('Congratulations! You\'ve completed all 8 levels!\n\nStarting from Level 1 again...');
             gameState.level = 1;
         } else {
             gameState.level++;
         }
-        
+
         gameState.seed = Date.now();
         gameState.won = false;
-        
+
         if (gameState.level > gameState.highestLevel && gameState.level <= 8) {
             gameState.highestLevel = gameState.level;
         }
-        
+
         document.getElementById('win').style.display = 'none';
-        
-        const mazeSize = 5 + gameState.level * 15;
-        maze = new Maze(mazeSize, mazeSize, gameState.seed);
-        player = new Player(maze.cellSize / 2, maze.cellSize / 2);
-        
-        gameState.playerX = maze.cellSize / 2;
-        gameState.playerY = maze.cellSize / 2;
-        
+
+        campaignMaze = new CampaignMaze(gameState.level, gameState.seed);
+        maze = campaignMaze;
+        const startPos = campaignMaze.getStartPosition();
+        player = new Player(startPos.x, startPos.y);
+
+        gameState.playerX = startPos.x;
+        gameState.playerY = startPos.y;
+
         saveGameState();
         updateUI();
     } else {
         quickMazeConfig.seed = Date.now();
         gameState.won = false;
         document.getElementById('win').style.display = 'none';
-        
+
         const mazeSize = 5 + quickMazeConfig.level * 15;
         maze = new Maze(mazeSize, mazeSize, quickMazeConfig.seed);
         player = new Player(maze.cellSize / 2, maze.cellSize / 2);
-        
+
         updateUI();
     }
 });
@@ -739,26 +784,32 @@ function gameLoop() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     let camX, camY;
-    
+
     if (movementMode === 'maze') {
         // Move Maze mode: camera follows player (current behavior)
         camX = player.x - canvas.width / 2;
         camY = player.y - canvas.height / 2;
     } else {
-        // Move Ball mode: camera centered, player moves freely
-        const mazeWidth = maze.cols * maze.cellSize;
-        const mazeHeight = maze.rows * maze.cellSize;
-        
-        // Center the maze on screen
-        camX = (mazeWidth - canvas.width) / 2;
-        camY = (mazeHeight - canvas.height) / 2;
-        
-        // If maze is smaller than screen, center it
-        if (mazeWidth < canvas.width) {
-            camX = -((canvas.width - mazeWidth) / 2);
-        }
-        if (mazeHeight < canvas.height) {
-            camY = -((canvas.height - mazeHeight) / 2);
+        // Move Ball mode: camera centers on current region/corridor
+        if (gameMode === 'campaign' && campaignMaze) {
+            // Use the campaign maze's camera method for region-based centering
+            const cam = campaignMaze.getCameraForMoveBallMode(canvas);
+            camX = cam.camX;
+            camY = cam.camY;
+        } else {
+            // Quick maze mode: center the whole maze
+            const mazeWidth = maze.cols * maze.cellSize;
+            const mazeHeight = maze.rows * maze.cellSize;
+
+            camX = (mazeWidth - canvas.width) / 2;
+            camY = (mazeHeight - canvas.height) / 2;
+
+            if (mazeWidth < canvas.width) {
+                camX = -((canvas.width - mazeWidth) / 2);
+            }
+            if (mazeHeight < canvas.height) {
+                camY = -((canvas.height - mazeHeight) / 2);
+            }
         }
     }
 
@@ -768,11 +819,24 @@ function gameLoop() {
         if (keys['arrowdown'] || keys['s']) dy += player.speed;
         if (keys['arrowleft'] || keys['a']) dx -= player.speed;
         if (keys['arrowright'] || keys['d']) dx += player.speed;
-        
+
         if (dx !== 0) player.move(dx, 0, maze);
         if (dy !== 0) player.move(0, dy, maze);
 
-        if (player.checkExit(maze)) {
+        // Check discovery for campaign mode
+        if (gameMode === 'campaign' && campaignMaze) {
+            campaignMaze.checkDiscovery(player.x, player.y);
+        }
+
+        // Check win condition
+        let hasWon = false;
+        if (gameMode === 'campaign' && campaignMaze) {
+            hasWon = campaignMaze.checkWin(player.x, player.y);
+        } else {
+            hasWon = player.checkExit(maze);
+        }
+
+        if (hasWon) {
             gameState.won = true;
             if (gameMode === 'campaign') {
                 saveGameState();
@@ -783,7 +847,12 @@ function gameLoop() {
         autoSave();
     }
 
-    maze.draw(camX, camY);
+    // Draw maze
+    if (gameMode === 'campaign' && campaignMaze) {
+        campaignMaze.draw(camX, camY, ctx, canvas);
+    } else {
+        maze.draw(camX, camY);
+    }
     player.draw(camX, camY);
 
     requestAnimationFrame(gameLoop);

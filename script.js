@@ -24,6 +24,7 @@ let zoomAnimation = {
 let smoothCam = {
     x: 0,
     y: 0,
+    zoom: 1,
     initialized: false,
     lerpFactor: 0.03 // Lower = slower transition (0.03 is ~50% slower than typical 0.06)
 };
@@ -637,8 +638,9 @@ document.getElementById('continueBtn').addEventListener('click', () => {
 });
 
 document.getElementById('newGameBtn').addEventListener('click', () => {
+    const seed = parseInt(document.getElementById('quickSeed').value) || Date.now();
     gameState.level = 1;
-    gameState.seed = Date.now();
+    gameState.seed = seed;
     gameState.playerX = 0;
     gameState.playerY = 0;
     gameState.won = false;
@@ -833,12 +835,14 @@ function gameLoop() {
             if (!smoothCam.initialized) {
                 smoothCam.x = cam.camX;
                 smoothCam.y = cam.camY;
+                smoothCam.zoom = cam.zoom;
                 smoothCam.initialized = true;
             }
 
-            // Smoothly interpolate camera position
+            // Smoothly interpolate camera position and zoom
             smoothCam.x += (cam.camX - smoothCam.x) * smoothCam.lerpFactor;
             smoothCam.y += (cam.camY - smoothCam.y) * smoothCam.lerpFactor;
+            smoothCam.zoom += (cam.zoom - smoothCam.zoom) * smoothCam.lerpFactor;
 
             camX = smoothCam.x;
             camY = smoothCam.y;
@@ -976,12 +980,28 @@ function gameLoop() {
         ctx.restore();
     } else {
         // Normal drawing (no zoom animation)
-        if (gameMode === 'campaign' && campaignMaze) {
+        // Apply zoom for move ball mode in campaign when region doesn't fit screen
+        const needsZoom = gameMode === 'campaign' && movementMode === 'ball' && smoothCam.zoom < 1;
+
+        if (needsZoom) {
+            ctx.save();
+            ctx.scale(smoothCam.zoom, smoothCam.zoom);
+
+            const scaledCanvas = {
+                width: canvas.width / smoothCam.zoom,
+                height: canvas.height / smoothCam.zoom
+            };
+
+            campaignMaze.draw(camX, camY, ctx, scaledCanvas);
+            player.draw(camX, camY);
+            ctx.restore();
+        } else if (gameMode === 'campaign' && campaignMaze) {
             campaignMaze.draw(camX, camY, ctx, canvas);
+            player.draw(camX, camY);
         } else {
             maze.draw(camX, camY);
+            player.draw(camX, camY);
         }
-        player.draw(camX, camY);
     }
 
     requestAnimationFrame(gameLoop);

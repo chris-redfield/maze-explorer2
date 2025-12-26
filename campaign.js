@@ -723,11 +723,18 @@ class CampaignMaze {
             viewHeight = reg.height * this.cellSize;
         }
 
-        // Calculate camera position to center the view
-        let camX = centerX - canvas.width / 2;
-        let camY = centerY - canvas.height / 2;
+        // Calculate zoom factor if region doesn't fit screen
+        // Add padding so the maze doesn't fill edge-to-edge
+        const padding = 1.1; // 10% padding
+        const scaleX = canvas.width / (viewWidth * padding);
+        const scaleY = canvas.height / (viewHeight * padding);
+        const zoom = Math.min(scaleX, scaleY, 1); // Only zoom out if needed (cap at 1)
 
-        return { camX, camY };
+        // Calculate camera position to center the view (adjusted for zoom)
+        let camX = centerX - (canvas.width / zoom) / 2;
+        let camY = centerY - (canvas.height / zoom) / 2;
+
+        return { camX, camY, zoom };
     }
 
     draw(camX, camY, ctx, canvas) {

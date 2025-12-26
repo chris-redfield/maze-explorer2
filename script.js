@@ -707,7 +707,6 @@ document.getElementById('nextLevelBtn').addEventListener('click', () => {
             gameState.level++;
         }
 
-        gameState.seed = Date.now();
         gameState.won = false;
 
         if (gameState.level > gameState.highestLevel && gameState.level <= 8) {

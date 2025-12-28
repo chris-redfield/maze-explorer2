@@ -914,6 +914,9 @@ function enableGyroscope() {
     // Hide D-pad when gyroscope is active
     document.getElementById('mobileControls').style.display = 'none';
 
+    // Enable landscape warning
+    document.body.classList.add('gyroscope-active');
+
     // Lock orientation when gyroscope is enabled
     lockOrientation();
 }
@@ -928,6 +931,9 @@ function disableGyroscope() {
 
     // Hide orientation toggle when gyroscope is disabled
     document.getElementById('gyroOrientationToggle').style.display = 'none';
+
+    // Disable landscape warning
+    document.body.classList.remove('gyroscope-active');
 
     // Show D-pad again on mobile
     if (isMobileDevice()) {

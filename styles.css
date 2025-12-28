@@ -414,3 +414,47 @@ body {
         padding: 10px;
     }
 }
+
+/* Landscape warning overlay */
+#landscapeWarning {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 15, 30, 0.95);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+
+.landscape-content {
+    text-align: center;
+    color: #4a90e2;
+    font-size: 20px;
+}
+
+.rotate-icon {
+    font-size: 60px;
+    margin-bottom: 20px;
+    animation: rotate-hint 1.5s ease-in-out infinite;
+}
+
+@keyframes rotate-hint {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(-90deg); }
+}
+
+.landscape-hint {
+    font-size: 14px;
+    color: #666;
+    margin-top: 15px;
+}
+
+/* Show warning only on mobile in landscape when gyroscope is active */
+@media (max-width: 900px) and (orientation: landscape) and (pointer: coarse) {
+    body.gyroscope-active #landscapeWarning {
+        display: flex;
+    }
+}

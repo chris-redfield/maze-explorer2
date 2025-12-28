@@ -313,6 +313,12 @@ document.getElementById('moveMazeBtn').addEventListener('click', () => {
     movementMode = 'maze';
     document.getElementById('moveMazeBtn').classList.add('active');
     document.getElementById('moveBallBtn').classList.remove('active');
+
+    // Disable gyroscope when switching to move maze mode
+    if (gyroscopeMode) {
+        disableGyroscope();
+    }
+
     if (gameMode === 'campaign') {
         gameState.movementMode = movementMode;
         saveGameState();
@@ -782,6 +788,225 @@ function setupMobileControls() {
 
 setupMobileControls();
 
+// Gyroscope control system
+let gyroscopeMode = false;
+let gyroscopeAvailable = false;
+let gyroscopeInput = { x: 0, y: 0 }; // Tilt values (-1 to 1)
+let gyroscopeOrientation = 'vertical'; // 'vertical' or 'horizontal'
+
+// Detect if device is mobile and has gyroscope
+function isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           ('ontouchstart' in window) ||
+           (navigator.maxTouchPoints > 0);
+}
+
+// Lock screen orientation to portrait
+function lockOrientation() {
+    if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('portrait').catch(() => {
+            // Orientation lock not supported or failed - that's ok
+        });
+    }
+}
+
+// Request gyroscope permission (required on iOS 13+)
+async function requestGyroscopePermission() {
+    // Check if we need to request permission (iOS 13+)
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try {
+            const permission = await DeviceOrientationEvent.requestPermission();
+            if (permission === 'granted') {
+                return true;
+            } else {
+                // Permission denied - show instructions to reset
+                alert(
+                    'Gyroscope permission was denied.\n\n' +
+                    'To reset and try again:\n' +
+                    '1. Go to Settings > Safari\n' +
+                    '2. Scroll down and tap "Clear History and Website Data"\n' +
+                    '   OR go to Settings > Safari > Advanced > Website Data and remove this site\n' +
+                    '3. Reload this page and try again'
+                );
+                return false;
+            }
+        } catch (e) {
+            console.error('Gyroscope permission request failed:', e);
+            // This can happen if not on HTTPS or other issues
+            alert(
+                'Could not request gyroscope permission.\n\n' +
+                'Make sure you are accessing this page via HTTPS.\n' +
+                'Error: ' + e.message
+            );
+            return false;
+        }
+    }
+    return true; // Permission not required on this device (Android, etc.)
+}
+
+// Handle device orientation for gyroscope input
+function handleDeviceOrientation(event) {
+    if (!gyroscopeMode || movementMode !== 'ball') return;
+
+    // beta: front-to-back tilt (-180 to 180, 0 when vertical, 90 when flat)
+    // gamma: left-to-right tilt (-90 to 90, 0 when flat)
+    const beta = event.beta || 0;  // Tilt forward/backward
+    const gamma = event.gamma || 0; // Tilt left/right
+
+    // Sensitivity thresholds and max tilt
+    const deadzone = 5; // Degrees of deadzone
+    const maxTilt = 30; // Maximum tilt angle for full speed
+
+    // Neutral position based on orientation mode:
+    // - Vertical: phone screen facing user (beta ~45)
+    // - Horizontal: phone screen facing up/ceiling (beta ~0)
+    const neutralBeta = gyroscopeOrientation === 'horizontal' ? 0 : 45;
+    const tiltForwardBack = beta - neutralBeta; // Positive = tilted back, negative = tilted forward
+
+    // Apply deadzone and normalize to -1 to 1
+    let normalizedY = 0;
+    if (Math.abs(tiltForwardBack) > deadzone) {
+        normalizedY = Math.max(-1, Math.min(1, (tiltForwardBack - Math.sign(tiltForwardBack) * deadzone) / maxTilt));
+    }
+
+    let normalizedX = 0;
+    if (Math.abs(gamma) > deadzone) {
+        normalizedX = Math.max(-1, Math.min(1, (gamma - Math.sign(gamma) * deadzone) / maxTilt));
+    }
+
+    gyroscopeInput.x = normalizedX;
+    gyroscopeInput.y = normalizedY;
+}
+
+// Initialize gyroscope system
+async function initGyroscope() {
+    if (!isMobileDevice()) {
+        console.log('Not a mobile device, gyroscope disabled');
+        return;
+    }
+
+    // Check if DeviceOrientationEvent is available
+    if (typeof DeviceOrientationEvent === 'undefined') {
+        console.log('DeviceOrientationEvent not available');
+        return;
+    }
+
+    // Show gyroscope toggle option
+    document.getElementById('gyroscopeToggle').style.display = 'flex';
+
+    // Lock orientation
+    lockOrientation();
+
+    gyroscopeAvailable = true;
+}
+
+// Gyroscope toggle button handlers
+function enableGyroscope() {
+    gyroscopeMode = true;
+    window.addEventListener('deviceorientation', handleDeviceOrientation);
+    document.getElementById('gyroOnBtn').classList.add('active');
+    document.getElementById('gyroOffBtn').classList.remove('active');
+
+    // Show orientation toggle when gyroscope is active
+    document.getElementById('gyroOrientationToggle').style.display = 'flex';
+
+    // Hide D-pad when gyroscope is active
+    document.getElementById('mobileControls').style.display = 'none';
+
+    // Lock orientation when gyroscope is enabled
+    lockOrientation();
+}
+
+function disableGyroscope() {
+    gyroscopeMode = false;
+    window.removeEventListener('deviceorientation', handleDeviceOrientation);
+    gyroscopeInput = { x: 0, y: 0 };
+
+    document.getElementById('gyroOffBtn').classList.add('active');
+    document.getElementById('gyroOnBtn').classList.remove('active');
+
+    // Hide orientation toggle when gyroscope is disabled
+    document.getElementById('gyroOrientationToggle').style.display = 'none';
+
+    // Show D-pad again on mobile
+    if (isMobileDevice()) {
+        document.getElementById('mobileControls').style.display = 'block';
+    }
+}
+
+document.getElementById('gyroOnBtn').addEventListener('click', function() {
+    if (!gyroscopeAvailable) return;
+
+    // iOS 13+ requires permission request directly in user gesture handler
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+
+        // Call requestPermission directly (not through async wrapper)
+        DeviceOrientationEvent.requestPermission()
+            .then(function(permission) {
+                if (permission === 'granted') {
+                    activateGyroscope();
+                } else {
+                    alert(
+                        'Gyroscope permission was denied.\n\n' +
+                        'To reset and try again:\n' +
+                        '1. Close Safari completely (swipe up from app switcher)\n' +
+                        '2. Settings > Safari > Advanced > Website Data\n' +
+                        '3. Find and delete this site\'s data\n' +
+                        '4. Reopen Safari and try again'
+                    );
+                }
+            })
+            .catch(function(e) {
+                alert(
+                    'Could not request gyroscope permission.\n\n' +
+                    'Make sure:\n' +
+                    '1. You are using HTTPS (check URL starts with https://)\n' +
+                    '2. Settings > Safari > Motion & Orientation Access is ON\n\n' +
+                    'Error: ' + e.message
+                );
+            });
+    } else {
+        // Android or older iOS - no permission needed
+        activateGyroscope();
+    }
+});
+
+function activateGyroscope() {
+    // Auto-switch to Move Ball mode since gyroscope only works there
+    if (movementMode !== 'ball') {
+        movementMode = 'ball';
+        document.getElementById('moveBallBtn').classList.add('active');
+        document.getElementById('moveMazeBtn').classList.remove('active');
+        if (gameMode === 'campaign') {
+            gameState.movementMode = movementMode;
+            saveGameState();
+        }
+    }
+    enableGyroscope();
+}
+
+document.getElementById('gyroOffBtn').addEventListener('click', () => {
+    disableGyroscope();
+});
+
+// Gyroscope orientation toggle handlers
+document.getElementById('gyroVerticalBtn').addEventListener('click', () => {
+    gyroscopeOrientation = 'vertical';
+    document.getElementById('gyroVerticalBtn').classList.add('active');
+    document.getElementById('gyroHorizontalBtn').classList.remove('active');
+});
+
+document.getElementById('gyroHorizontalBtn').addEventListener('click', () => {
+    gyroscopeOrientation = 'horizontal';
+    document.getElementById('gyroHorizontalBtn').classList.add('active');
+    document.getElementById('gyroVerticalBtn').classList.remove('active');
+});
+
+// Initialize gyroscope on load
+initGyroscope();
+
 function updateUI() {
     if (gameMode === 'campaign') {
         document.getElementById('modeDisplay').textContent = 'Campaign';
@@ -864,10 +1089,18 @@ function gameLoop() {
 
     if (!gameState.won) {
         let dx = 0, dy = 0;
-        if (keys['arrowup'] || keys['w']) dy -= player.speed;
-        if (keys['arrowdown'] || keys['s']) dy += player.speed;
-        if (keys['arrowleft'] || keys['a']) dx -= player.speed;
-        if (keys['arrowright'] || keys['d']) dx += player.speed;
+
+        // Gyroscope input (only in move ball mode)
+        if (gyroscopeMode && movementMode === 'ball') {
+            dx = gyroscopeInput.x * player.speed;
+            dy = gyroscopeInput.y * player.speed;
+        } else {
+            // Keyboard/touch input
+            if (keys['arrowup'] || keys['w']) dy -= player.speed;
+            if (keys['arrowdown'] || keys['s']) dy += player.speed;
+            if (keys['arrowleft'] || keys['a']) dx -= player.speed;
+            if (keys['arrowright'] || keys['d']) dx += player.speed;
+        }
 
         if (dx !== 0) player.move(dx, 0, maze);
         if (dy !== 0) player.move(0, dy, maze);

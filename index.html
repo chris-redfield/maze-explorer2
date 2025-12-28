@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="ngrok-skip-browser-warning" content="true">
     <title>Maze Explorer</title>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -42,6 +43,26 @@
                 <div class="toggle-buttons">
                     <button class="toggle-btn" id="moveBallBtn">Move Ball</button>
                     <button class="toggle-btn active" id="moveMazeBtn">Move Maze</button>
+                </div>
+            </div>
+            <div class="gyroscope-toggle" id="gyroscopeToggle" style="display: none;">
+                <div class="toggle-label">Gyroscope Control (Move Ball mode only)</div>
+                <div class="toggle-buttons">
+                    <button class="toggle-btn" id="gyroOnBtn">Gyroscope ON</button>
+                    <button class="toggle-btn active" id="gyroOffBtn">Gyroscope OFF</button>
+                </div>
+            </div>
+            <div class="gyroscope-toggle" id="gyroOrientationToggle" style="display: none;">
+                <div class="toggle-label">Phone Orientation</div>
+                <div class="toggle-buttons">
+                    <div class="toggle-option">
+                        <button class="toggle-btn active" id="gyroVerticalBtn">Vertical</button>
+                        <span class="toggle-hint">screen facing you</span>
+                    </div>
+                    <div class="toggle-option">
+                        <button class="toggle-btn" id="gyroHorizontalBtn">Horizontal</button>
+                        <span class="toggle-hint">screen facing up</span>
+                    </div>
                 </div>
             </div>
         </div>
